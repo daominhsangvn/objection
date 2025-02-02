@@ -202,7 +202,7 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     if network_security_config:
         patcher.add_network_security_config()
 
-    patcher.inject_load_library(target_class=target_class)
+    patcher.inject_load_library(target_class=target_class, custom_gadget_name=custom_gadget_name)
     patcher.add_gadget_to_apk(architecture, android_gadget.get_frida_library_path(), gadget_config, script_source, custom_gadget_name)
 
     # if we are required to pause, do that.
