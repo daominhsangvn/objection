@@ -25,6 +25,16 @@ Installation is simply a matter of `pip3 install objection`. This will give you 
 
 For more detailed update and installation instructions, please refer to the wiki page [here](https://github.com/sensepost/objection/wiki/Installation).
 
+## developing & local build
+### Local build
+```
+rm -rf dist/* && python setup.py sdist
+```
+### Local install
+```
+pip install dist/objection-x.x.x.tar.gz --upgrade
+```
+
 ## license
 
 `objection` is licensed under a [GNU General Public v3 License](https://www.gnu.org/licenses/gpl-3.0.en.html). Permissions beyond the scope of this license may be available at [http://sensepost.com/contact/](http://sensepost.com/contact/).

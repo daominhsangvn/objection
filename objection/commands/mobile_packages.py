@@ -100,7 +100,7 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
                       enable_debug: bool = True, gadget_version: str = None, skip_resources: bool = False,
                       network_security_config: bool = False, target_class: str = None,
                       use_aapt2: bool = False, gadget_config: str = None, script_source: str = None,
-                      ignore_nativelibs: bool = True, manifest: str = None, skip_signing: bool = False, only_main_classes: bool = False) -> None:
+                      ignore_nativelibs: bool = True, manifest: str = None, skip_signing: bool = False, only_main_classes: bool = False, custom_gadget_name:str = None) -> None:
     """
         Patches an Android APK by extracting, patching SMALI, repackaging
         and signing a new APK.
@@ -119,6 +119,7 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
         :param script_source:
         :param manifest:
         :param skip_signing:
+        :param custom_gadget_name:
 
         :return:
     """
@@ -202,13 +203,7 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
         patcher.add_network_security_config()
 
     patcher.inject_load_library(target_class=target_class)
-    patcher.add_gadget_to_apk(architecture, android_gadget.get_frida_library_path(), gadget_config)
-
-    if script_source:
-        click.secho('Copying over a custom script to use with the gadget config.', fg='green')
-        shutil.copyfile(script_source,
-                        os.path.join(patcher.apk_temp_directory, 'lib', architecture,
-                                     'libfrida-gadget.script.so'))
+    patcher.add_gadget_to_apk(architecture, android_gadget.get_frida_library_path(), gadget_config, script_source, custom_gadget_name)
 
     # if we are required to pause, do that.
     if pause:

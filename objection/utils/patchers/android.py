@@ -304,18 +304,25 @@ class AndroidPatcher(BasePlatformPatcher):
         """
 
         if not self.aapt:
-            o = delegator.run(self.list2cmdline([
-                self.required_commands['aapt']['location'],
-                'dump',
-                'badging',
-                self.apk_source
-            ]), timeout=self.command_run_timeout)
+            try:
+                # Run command with explicit encoding and capture output directly
+                process = delegator.run(self.list2cmdline([
+                    self.required_commands['aapt']['location'],
+                    'dump',
+                    'badging',
+                    self.apk_source
+                ]), timeout=self.command_run_timeout, binary=True)  # Use binary=True to get bytes
 
-            if len(o.err) > 0:
-                click.secho('An error may have occurred while running aapt.', fg='red')
-                click.secho(o.err, fg='red')
+                # Decode output using utf-8 with error handling
+                self.aapt = process.out.decode('utf-8', errors='replace')
 
-            self.aapt = o.out
+                if len(process.err) > 0:
+                    click.secho('An error may have occurred while running aapt.', fg='red')
+                    click.secho(process.err.decode('utf-8', errors='replace'), fg='red')
+
+            except Exception as e:
+                click.secho(f'Failed to run aapt: {str(e)}', fg='red')
+                raise
 
         return self.aapt
 
@@ -853,7 +860,7 @@ class AndroidPatcher(BasePlatformPatcher):
         with open(activity_path, 'w') as f:
             f.write(''.join(patched_smali))
 
-    def add_gadget_to_apk(self, architecture: str, gadget_source: str, gadget_config: str):
+    def add_gadget_to_apk(self, architecture: str, gadget_source: str, gadget_config: str, script_source: str = None, custom_gadget_name:str = None):
         """
             Copies a frida gadget for a specific architecture to
             an extracted APK's lib path.
@@ -861,22 +868,34 @@ class AndroidPatcher(BasePlatformPatcher):
             :param architecture:
             :param gadget_source:
             :param gadget_config:
+            :param custom_gadget_name:
             :return:
         """
 
         libs_path = os.path.join(self.apk_temp_directory, 'lib', architecture)
+        gadget_name = 'libfrida-gadget'
 
         # check if the libs path exists
         if not os.path.exists(libs_path):
             click.secho('Creating library path: {0}'.format(libs_path), dim=True)
             os.makedirs(libs_path)
 
+        # Apply custom gadget name if provided
+        if custom_gadget_name:
+            if not custom_gadget_name.startswith("lib"):
+                custom_gadget_name = f"lib{custom_gadget_name}"
+            gadget_name = custom_gadget_name
+
         click.secho('Copying Frida gadget to libs path...', fg='green', dim=True)
-        shutil.copyfile(gadget_source, os.path.join(libs_path, 'libfrida-gadget.so'))
+        shutil.copyfile(gadget_source, os.path.join(libs_path, gadget_name + '.so'))
 
         if gadget_config:
             click.secho('Adding a gadget configuration file...', fg='green')
-            shutil.copyfile(gadget_config, os.path.join(libs_path, 'libfrida-gadget.config.so'))
+            shutil.copyfile(gadget_config, os.path.join(libs_path, gadget_name + '.config.so'))
+
+        if script_source:
+            click.secho('Copying over a custom script to use with the gadget config.', fg='green')
+            shutil.copyfile(script_source, os.path.join(libs_path, gadget_name + '.script.so'))
 
     def build_new_apk(self, use_aapt2: bool = False):
         """
