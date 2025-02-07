@@ -455,6 +455,54 @@ class AndroidPatcher(BasePlatformPatcher):
 
         xml.write(os.path.join(self.apk_temp_directory, 'AndroidManifest.xml'),
                   encoding='utf-8', xml_declaration=True)
+    
+    def inject_other_permissions(self):
+        """
+            Checks the status of the source APK to see if it
+            has the other permissions. If not, the manifest file
+            is parsed and the permission injected.
+
+            :return:
+        """
+
+        write_external_storage_permission = 'WRITE_EXTERNAL_STORAGE'
+        read_external_storage_permission = 'READ_EXTERNAL_STORAGE'
+
+        xml = self._get_android_manifest()
+        root = xml.getroot()
+
+        if write_external_storage_permission in self._get_appt_output():
+            click.secho('App already has android.permission.WRITE_EXTERNAL_STORAGE', fg='green')
+        else:
+            # if not, we need to inject an element with it
+            click.secho('App does not have android.permission.WRITE_EXTERNAL_STORAGE, attempting to patch the AndroidManifest.xml...',
+                        dim=True, fg='yellow')
+
+            click.secho('Injecting permission: {0}'.format(write_external_storage_permission), fg='green')
+
+            # prepare a new 'uses-permission' tag
+            child = ElementTree.Element('uses-permission')
+            child.set('android:name', write_external_storage_permission)
+            root.append(child)
+
+        if read_external_storage_permission in self._get_appt_output():
+            click.secho('App already has android.permission.READ_EXTERNAL_STORAGE', fg='green')
+        else:
+            # if not, we need to inject an element with it
+            click.secho('App does not have android.permission.READ_EXTERNAL_STORAGE, attempting to patch the AndroidManifest.xml...',
+                        dim=True, fg='yellow')
+
+            click.secho('Injecting permission: {0}'.format(read_external_storage_permission), fg='green')
+
+            # prepare a new 'uses-permission' tag
+            child = ElementTree.Element('uses-permission')
+            child.set('android:name', read_external_storage_permission)
+            root.append(child)
+
+        click.secho('Writing new Android manifest...', dim=True)
+
+        xml.write(os.path.join(self.apk_temp_directory, 'AndroidManifest.xml'),
+                  encoding='utf-8', xml_declaration=True)
 
     def extract_native_libs_patch(self):
         """

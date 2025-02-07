@@ -192,6 +192,7 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     patcher.set_apk_source(source=source)
     patcher.unpack_apk()
     patcher.inject_internet_permission()
+    patcher.inject_other_permissions()
 
     if not ignore_nativelibs:
         patcher.extract_native_libs_patch()
