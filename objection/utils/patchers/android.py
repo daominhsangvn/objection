@@ -921,10 +921,13 @@ class AndroidPatcher(BasePlatformPatcher):
         libs_path = os.path.join(self.apk_temp_directory, 'lib')
         
         if not os.path.exists(libs_path):
-            return
+            raise Exception(f'Cannot find lib folder at apk temp directory: {libs_path}')
                 
         # Get all architecture folders
         arch_folders = [f for f in os.listdir(libs_path) if os.path.isdir(os.path.join(libs_path, f))]
+
+        # print list of arch folder in lib
+        click.secho(f'Arch folders in lib: {arch_folders}', fg='green')
         
         # Check if armeabi-v7a exists
         if 'armeabi-v7a' not in arch_folders:

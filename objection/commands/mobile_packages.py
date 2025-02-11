@@ -187,14 +187,6 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     if not patcher.are_requirements_met():
         return
 
-    # if we are building for an emulator, cleanup the non-emulator libs except for armeabi-v7a
-    if emulator:
-        try:
-            patcher.cleanup_non_emulator_libs()
-        except Exception as e:
-            click.secho(str(e), fg='red', bold=True)
-            return
-
     # ensure we have the latest apk-tool and run the
     if not patcher.is_apktool_ready():
         click.secho('apktool is not ready for use', fg='red', bold=True)
@@ -203,6 +195,16 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     # work on patching the APK
     patcher.set_apk_source(source=source)
     patcher.unpack_apk()
+
+    # if we are building for an emulator, cleanup the non-emulator libs except for armeabi-v7a
+    if emulator:
+        try:
+            click.secho('Cleaning up libs for emulator...', fg='green', bold=True)
+            patcher.cleanup_non_emulator_libs()
+        except Exception as e:
+            click.secho(str(e), fg='red', bold=True)
+            return
+
     patcher.inject_internet_permission()
     patcher.inject_other_permissions()
 
