@@ -912,6 +912,31 @@ class AndroidPatcher(BasePlatformPatcher):
         with open(activity_path, 'w') as f:
             f.write(''.join(patched_smali))
 
+    def cleanup_non_emulator_libs(self) -> None:
+        """
+        Remove all architecture folders except armeabi-v7a for emulator builds.
+        
+        :return: None
+        """
+        libs_path = os.path.join(self.apk_temp_directory, 'lib')
+        
+        if not os.path.exists(libs_path):
+            return
+                
+        # Get all architecture folders
+        arch_folders = [f for f in os.listdir(libs_path) if os.path.isdir(os.path.join(libs_path, f))]
+        
+        # Check if armeabi-v7a exists
+        if 'armeabi-v7a' not in arch_folders:
+            raise Exception('Cannot find armeabi-v7a architecture folder in the lib folder')
+        
+        # Remove all folders except armeabi-v7a
+        for folder in arch_folders:
+            if folder != 'armeabi-v7a':
+                folder_path = os.path.join(libs_path, folder)
+                click.secho(f'Removing {folder} libs folder for emulator build...', fg='green')
+                shutil.rmtree(folder_path)
+
     def add_gadget_to_apk(self, architecture: str, gadget_source: str, gadget_config: str, script_source: str = None, custom_gadget_name:str = None):
         """
             Copies a frida gadget for a specific architecture to

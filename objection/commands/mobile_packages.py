@@ -100,7 +100,7 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
                       enable_debug: bool = True, gadget_version: str = None, skip_resources: bool = False,
                       network_security_config: bool = False, target_class: str = None,
                       use_aapt2: bool = False, gadget_config: str = None, script_source: str = None,
-                      ignore_nativelibs: bool = True, manifest: str = None, skip_signing: bool = False, only_main_classes: bool = False, custom_gadget_name:str = None) -> None:
+                      ignore_nativelibs: bool = True, manifest: str = None, skip_signing: bool = False, only_main_classes: bool = False, custom_gadget_name:str = None, emulator:bool = False) -> None:
     """
         Patches an Android APK by extracting, patching SMALI, repackaging
         and signing a new APK.
@@ -120,7 +120,7 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
         :param manifest:
         :param skip_signing:
         :param custom_gadget_name:
-
+        :param emulator:
         :return:
     """
 
@@ -128,9 +128,13 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     android_gadget = AndroidGadget(github)
 
     # without an architecture set, attempt to determine one using adb
-    if not architecture:
-        click.secho('No architecture specified. Determining it using `adb`...', dim=True)
-        o = delegator.run('adb shell getprop ro.product.cpu.abi')
+    if emulator:
+        architecture = "armeabi-v7a"
+        click.secho('Using armeabi-v7a architecture for emulator target...', fg='green', bold=True)
+    else:
+        if not architecture:
+            click.secho('No architecture specified. Determining it using `adb`...', dim=True)
+            o = delegator.run('adb shell getprop ro.product.cpu.abi')
 
         # read the ach from the process' output
         architecture = o.out.strip()
@@ -183,6 +187,14 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     if not patcher.are_requirements_met():
         return
 
+    # if we are building for an emulator, cleanup the non-emulator libs except for armeabi-v7a
+    if emulator:
+        try:
+            patcher.cleanup_non_emulator_libs()
+        except Exception as e:
+            click.secho(str(e), fg='red', bold=True)
+            return
+
     # ensure we have the latest apk-tool and run the
     if not patcher.is_apktool_ready():
         click.secho('apktool is not ready for use', fg='red', bold=True)
@@ -205,7 +217,7 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
 
     patcher.inject_load_library(target_class=target_class, custom_gadget_name=custom_gadget_name)
     patcher.add_gadget_to_apk(architecture, android_gadget.get_frida_library_path(), gadget_config, script_source, custom_gadget_name)
-
+    
     # if we are required to pause, do that.
     if pause:
         click.secho(('Patching paused. The next step is to rebuild the APK. '
