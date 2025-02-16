@@ -100,7 +100,7 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
                       enable_debug: bool = True, gadget_version: str = None, skip_resources: bool = False,
                       network_security_config: bool = False, target_class: str = None,
                       use_aapt2: bool = False, gadget_config: str = None, script_source: str = None,
-                      ignore_nativelibs: bool = True, manifest: str = None, skip_signing: bool = False, only_main_classes: bool = False, custom_gadget_name:str = None, emulator:bool = False) -> None:
+                      ignore_nativelibs: bool = True, manifest: str = None, skip_signing: bool = False, only_main_classes: bool = False, custom_gadget_name:str = None, emulator:bool = False, custom_lib:str = None, custom_lib_name:str = None) -> None:
     """
         Patches an Android APK by extracting, patching SMALI, repackaging
         and signing a new APK.
@@ -121,6 +121,8 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
         :param skip_signing:
         :param custom_gadget_name:
         :param emulator:
+        :param custom_lib:
+        :param custom_lib_name:
         :return:
     """
 
@@ -149,37 +151,39 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     # set the architecture we are interested in
     android_gadget.set_architecture(architecture)
 
-    # check the gadget config flags
-    if script_source and not gadget_config:
-        click.secho('A script source was specified but no gadget configuration was set.', fg='red', bold=True)
-        return
+    # ignore the gadget if custom lib and custom lib name are set
+    if not custom_lib and not custom_lib_name:
+        # check the gadget config flags
+        if script_source and not gadget_config:
+            click.secho('A script source was specified but no gadget configuration was set.', fg='red', bold=True)
+            return
 
-    # check if a gadget version was specified. if not, get the latest one.
-    if gadget_version is not None:
-        github_version = gadget_version
-        click.secho('Using manually specified version: {0}'.format(gadget_version), fg='green', bold=True)
-    else:
-        github_version = github.get_latest_version()
-        click.secho('Using latest Github gadget version: {0}'.format(github_version), fg='green', bold=True)
+        # check if a gadget version was specified. if not, get the latest one.
+        if gadget_version is not None:
+            github_version = gadget_version
+            click.secho('Using manually specified version: {0}'.format(gadget_version), fg='green', bold=True)
+        else:
+            github_version = github.get_latest_version()
+            click.secho('Using latest Github gadget version: {0}'.format(github_version), fg='green', bold=True)
 
-    # get local version of the stored gadget
-    local_version = android_gadget.get_local_version('android_' + architecture)
+        # get local version of the stored gadget
+        local_version = android_gadget.get_local_version('android_' + architecture)
 
-    # check if the local version needs updating. this can be either because
-    # the version is outdated or we simply don't have the gadget yet, or, we want
-    # a very specific version
-    if parse_version(github_version) != parse_version(local_version) or not android_gadget.gadget_exists():
-        # download!
-        click.secho('Remote FridaGadget version is v{0}, local is v{1}. Downloading...'.format(
-            github_version, local_version), fg='green')
+        # check if the local version needs updating. this can be either because
+        # the version is outdated or we simply don't have the gadget yet, or, we want
+        # a very specific version
+        if parse_version(github_version) != parse_version(local_version) or not android_gadget.gadget_exists():
+            # download!
+            click.secho('Remote FridaGadget version is v{0}, local is v{1}. Downloading...'.format(
+                github_version, local_version), fg='green')
 
-        # download, unpack, update local version and cleanup the temp files.
-        android_gadget.download() \
-            .unpack() \
-            .set_local_version('android_' + architecture, github_version) \
-            .cleanup()
+            # download, unpack, update local version and cleanup the temp files.
+            android_gadget.download() \
+                .unpack() \
+                .set_local_version('android_' + architecture, github_version) \
+                .cleanup()
 
-    click.secho('Patcher will be using Gadget version: {0}'.format(github_version), fg='green')
+        click.secho('Patcher will be using Gadget version: {0}'.format(github_version), fg='green')
 
     patcher = AndroidPatcher(skip_cleanup=skip_cleanup, skip_resources=skip_resources, manifest=manifest, only_main_classes=only_main_classes)
 
@@ -217,8 +221,12 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     if network_security_config:
         patcher.add_network_security_config()
 
-    patcher.inject_load_library(target_class=target_class, custom_gadget_name=custom_gadget_name)
-    patcher.add_gadget_to_apk(architecture, android_gadget.get_frida_library_path(), gadget_config, script_source, custom_gadget_name)
+    if custom_lib and custom_lib_name:
+        patcher.inject_load_library(target_class=target_class, lib_name=custom_lib_name)
+        patcher.add_customer_lib_to_apk(architecture, custom_lib, custom_lib_name)
+    else:
+        patcher.inject_load_library(target_class=target_class, lib_name=custom_gadget_name)
+        patcher.add_gadget_to_apk(architecture, android_gadget.get_frida_library_path(), gadget_config, script_source, custom_gadget_name)
     
     # if we are required to pause, do that.
     if pause:

@@ -745,7 +745,7 @@ class AndroidPatcher(BasePlatformPatcher):
 
             return pos - 1
 
-    def _patch_smali_with_load_library(self, smali_lines: list, inject_marker: int, custom_gadget_name: str = None) -> list:
+    def _patch_smali_with_load_library(self, smali_lines: list, inject_marker: int, lib_name: str = None) -> list:
         """
             Patches a list of smali lines with the appropriate
             loadLibrary call based on wether a constructor already
@@ -759,16 +759,16 @@ class AndroidPatcher(BasePlatformPatcher):
         # raw smali to inject.
         # ref: https://koz.io/using-frida-on-android-without-root/
 
-        gadget_name = 'frida-gadget'
-        if custom_gadget_name:
-            gadget_name = custom_gadget_name
+        _lib_name = 'frida-gadget'
+        if lib_name:
+            _lib_name = lib_name
 
         # if no constructor is present, the full_load_library is used
         full_load_library = ('.method static constructor <clinit>()V\n'
                              '   .locals 0\n'  # _revalue_locals_count() will ++ this
                              '\n'
                              '   .prologue\n'
-                             '   const-string v0, "' + gadget_name + '"\n'
+                             '   const-string v0, "' + _lib_name + '"\n'
                              '\n'
                              '   invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V\n'
                              '\n'
@@ -777,7 +777,7 @@ class AndroidPatcher(BasePlatformPatcher):
 
         # if an existing constructor is present, this partial_load_library
         # will be used instead
-        partial_load_library = ('\n    const-string v0, "' + gadget_name + '"\n'
+        partial_load_library = ('\n    const-string v0, "' + _lib_name + '"\n'
                                 '\n'
                                 '    invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V\n')
 
@@ -860,8 +860,8 @@ class AndroidPatcher(BasePlatformPatcher):
             str(defined_local_value_as_int), str(new_locals_value))
 
         return patched_smali
-
-    def inject_load_library(self, target_class: str = None, custom_gadget_name: str = None):
+    
+    def inject_load_library(self, target_class: str = None, lib_name: str = None):
         """
             Injects a loadLibrary call into a class.
             If a target class is not specified, we will make an attempt
@@ -904,7 +904,7 @@ class AndroidPatcher(BasePlatformPatcher):
         # want to inject right below the comment we matched
         inject_marker = inject_marker[0] + 1
 
-        patched_smali = self._patch_smali_with_load_library(smali_lines, inject_marker, custom_gadget_name)
+        patched_smali = self._patch_smali_with_load_library(smali_lines, inject_marker, lib_name)
         patched_smali = self._revalue_locals_count(patched_smali, inject_marker)
 
         click.secho('Writing patched smali back to: {0}'.format(activity_path), dim=True)
@@ -940,7 +940,29 @@ class AndroidPatcher(BasePlatformPatcher):
                 click.secho(f'Removing {folder} libs folder for emulator build...', fg='green')
                 shutil.rmtree(folder_path)
 
-    def add_gadget_to_apk(self, architecture: str, gadget_source: str, gadget_config: str, script_source: str = None, custom_gadget_name:str = None):
+    def add_customer_lib_to_apk(self, architecture: str, lib_source: str, lib_name:str = None):
+        """
+            Copies a customer lib for a specific architecture to
+            an extracted APK's lib path.
+
+            :param architecture:
+            :param lib_source:
+            :param lib_name:
+            :return:
+        """
+
+        libs_path = os.path.join(self.apk_temp_directory, 'lib', architecture)
+        lib_name = f"lib{lib_name}"
+
+        # check if the libs path exists
+        if not os.path.exists(libs_path):
+            click.secho('Creating library path: {0}'.format(libs_path), dim=True)
+            os.makedirs(libs_path)
+
+        click.secho('Copying custom lib to libs path...', fg='green', dim=True)
+        shutil.copyfile(lib_source, os.path.join(libs_path, lib_name + '.so'))
+
+    def add_gadget_to_apk(self, architecture: str, gadget_source: str, gadget_config: str, script_source: str = None, lib_name:str = None):
         """
             Copies a frida gadget for a specific architecture to
             an extracted APK's lib path.
@@ -948,7 +970,7 @@ class AndroidPatcher(BasePlatformPatcher):
             :param architecture:
             :param gadget_source:
             :param gadget_config:
-            :param custom_gadget_name:
+            :param lib_name:
             :return:
         """
 
@@ -961,10 +983,10 @@ class AndroidPatcher(BasePlatformPatcher):
             os.makedirs(libs_path)
 
         # Apply custom gadget name if provided
-        if custom_gadget_name:
-            if not custom_gadget_name.startswith("lib"):
-                custom_gadget_name = f"lib{custom_gadget_name}"
-            gadget_name = custom_gadget_name
+        if lib_name:
+            if not lib_name.startswith("lib"):
+                lib_name = f"lib{lib_name}"
+            gadget_name = lib_name
 
         click.secho('Copying Frida gadget to libs path...', fg='green', dim=True)
         shutil.copyfile(gadget_source, os.path.join(libs_path, gadget_name + '.so'))
