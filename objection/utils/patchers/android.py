@@ -912,9 +912,10 @@ class AndroidPatcher(BasePlatformPatcher):
         with open(activity_path, 'w') as f:
             f.write(''.join(patched_smali))
 
-    def cleanup_non_emulator_libs(self) -> None:
+
+    def remove_other_architecture_except(self, keep_architecture_only: str) -> None:
         """
-        Remove all architecture folders except armeabi-v7a for emulator builds.
+        Remove all architecture folders except the specified architecture.
         
         :return: None
         """
@@ -922,23 +923,26 @@ class AndroidPatcher(BasePlatformPatcher):
         
         if not os.path.exists(libs_path):
             raise Exception(f'Cannot find lib folder at apk temp directory: {libs_path}')
-                
+
         # Get all architecture folders
         arch_folders = [f for f in os.listdir(libs_path) if os.path.isdir(os.path.join(libs_path, f))]
 
         # print list of arch folder in lib
-        click.secho(f'Arch folders in lib: {arch_folders}', fg='green')
-        
-        # Check if armeabi-v7a exists
-        if 'armeabi-v7a' not in arch_folders:
-            raise Exception('Cannot find armeabi-v7a architecture folder in the lib folder')
-        
-        # Remove all folders except armeabi-v7a
+        click.secho(f'Current architectures in lib: {arch_folders}', fg='green')
+        click.secho(f'Starting to remove all architectures except {keep_architecture_only}', fg='green')
+
+        # Remove all folders except the specified architecture
         for folder in arch_folders:
-            if folder != 'armeabi-v7a':
+            if folder != keep_architecture_only:
                 folder_path = os.path.join(libs_path, folder)
-                click.secho(f'Removing {folder} libs folder for emulator build...', fg='green')
+                click.secho(f'Removing {folder} libs folder...', fg='green')
                 shutil.rmtree(folder_path)
+        
+        # Check if there is no folder left in the lib folder then throw error
+        if not os.listdir(libs_path):
+            raise Exception('No architecture folder left in the lib folder')
+        
+        click.secho(f'Final architectures in libs folder: {os.listdir(libs_path)}', fg='green')
 
     def add_customer_lib_to_apk(self, architecture: str, lib_source: str, lib_name:str = None):
         """

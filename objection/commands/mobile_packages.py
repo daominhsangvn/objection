@@ -100,7 +100,9 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
                       enable_debug: bool = True, gadget_version: str = None, skip_resources: bool = False,
                       network_security_config: bool = False, target_class: str = None,
                       use_aapt2: bool = False, gadget_config: str = None, script_source: str = None,
-                      ignore_nativelibs: bool = True, manifest: str = None, skip_signing: bool = False, only_main_classes: bool = False, custom_gadget_name:str = None, emulator:bool = False, custom_lib:str = None, custom_lib_name:str = None) -> None:
+                      ignore_nativelibs: bool = True, manifest: str = None, skip_signing: bool = False,
+                      only_main_classes: bool = False, custom_gadget_name:str = None,
+                      custom_lib:str = None, custom_lib_name:str = None, remove_other_architecture_libs:bool = True) -> None:
     """
         Patches an Android APK by extracting, patching SMALI, repackaging
         and signing a new APK.
@@ -120,9 +122,9 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
         :param manifest:
         :param skip_signing:
         :param custom_gadget_name:
-        :param emulator:
         :param custom_lib:
         :param custom_lib_name:
+        :param remove_other_architecture_libs:
         :return:
     """
 
@@ -130,23 +132,19 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     android_gadget = AndroidGadget(github)
 
     # without an architecture set, attempt to determine one using adb
-    if emulator:
-        architecture = "armeabi-v7a"
-        click.secho('Using armeabi-v7a architecture for emulator target...', fg='green', bold=True)
-    else:
-        if not architecture:
-            click.secho('No architecture specified. Determining it using `adb`...', dim=True)
-            o = delegator.run('adb shell getprop ro.product.cpu.abi')
+    if not architecture:
+        click.secho('No architecture specified. Determining it using `adb`...', dim=True)
+        o = delegator.run('adb shell getprop ro.product.cpu.abi')
 
-        # read the ach from the process' output
-        architecture = o.out.strip()
+    # read the ach from the process' output
+    architecture = o.out.strip()
 
-        if len(architecture) <= 0:
-            click.secho('Failed to determine architecture. Is the device connected and authorized?',
-                        fg='red', bold=True)
-            return
+    if len(architecture) <= 0:
+        click.secho('Failed to determine architecture. Is the device connected and authorized?',
+                    fg='red', bold=True)
+        return
 
-        click.secho('Detected target device architecture as: {0}'.format(architecture), fg='green', bold=True)
+    click.secho('Detected target device architecture as: {0}'.format(architecture), fg='green', bold=True)
 
     # set the architecture we are interested in
     android_gadget.set_architecture(architecture)
@@ -200,15 +198,6 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     patcher.set_apk_source(source=source)
     patcher.unpack_apk()
 
-    # if we are building for an emulator, cleanup the non-emulator libs except for armeabi-v7a
-    if emulator:
-        try:
-            click.secho('Cleaning up libs for emulator...', fg='green', bold=True)
-            patcher.cleanup_non_emulator_libs()
-        except Exception as e:
-            click.secho(str(e), fg='red', bold=True)
-            return
-
     patcher.inject_internet_permission()
     patcher.inject_other_permissions()
 
@@ -220,6 +209,9 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
 
     if network_security_config:
         patcher.add_network_security_config()
+
+    if remove_other_architecture_libs:
+        patcher.remove_other_architecture_except(architecture)
 
     if custom_lib and custom_lib_name:
         patcher.inject_load_library(target_class=target_class, lib_name=custom_lib_name)

@@ -280,12 +280,14 @@ def patchipa(source: str, gadget_version: str, codesign_signature: str, provisio
 @click.option('--manifest', '-m', help='A decoded AndroidManifest.xml file to read.', default=None)
 @click.option('--only-main-classes', help="Only patch classes that are in the main dex file.", is_flag=True, default=False)
 @click.option('--custom-gadget-name', default=None, help="Custom name for the Frida gadget. Default is 'frida-gadget'")
-@click.option('--emulator', '-e', is_flag=True, default=False, help="Keep only armeabi-v7a libs folder for emulator")
 @click.option('--custom-lib', '-cl', default=None, help="Path to custom so lib to inject")
 @click.option('--custom-lib-name', '-cln', default=None, help="Name of the custom so lib to inject")
+@click.option('--remove-other-architecture-libs', '-roal', is_flag=True, default=False, help="Remove all architecture except the target one")
 def patchapk(source: str, architecture: str, gadget_version: str, pause: bool, skip_cleanup: bool,
              enable_debug: bool, skip_resources: bool, network_security_config: bool, target_class: str,
-             use_aapt2: bool, gadget_config: str, script_source: str, ignore_nativelibs: bool, manifest: str, skip_signing: bool, only_main_classes:bool = False, custom_gadget_name:str = None, emulator:bool = False, custom_lib:str = None, custom_lib_name:str = None) -> None:
+             use_aapt2: bool, gadget_config: str, script_source: str, ignore_nativelibs: bool, manifest: str,
+             skip_signing: bool, only_main_classes:bool = False, custom_gadget_name:str = None,
+             custom_lib:str = None, custom_lib_name:str = None, remove_other_architecture_libs:bool = False) -> None:
     """
         Patch an APK with the frida-gadget.so.
     """
