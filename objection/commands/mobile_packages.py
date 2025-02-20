@@ -136,8 +136,8 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
         click.secho('No architecture specified. Determining it using `adb`...', dim=True)
         o = delegator.run('adb shell getprop ro.product.cpu.abi')
 
-    # read the ach from the process' output
-    architecture = o.out.strip()
+        # read the ach from the process' output
+        architecture = o.out.strip()
 
     if len(architecture) <= 0:
         click.secho('Failed to determine architecture. Is the device connected and authorized?',
