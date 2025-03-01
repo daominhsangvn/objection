@@ -1073,7 +1073,7 @@ class AndroidPatcher(BasePlatformPatcher):
 
         click.secho('Signing new APK.', dim=True)
 
-        o = delegator.run(self.list2cmdline([
+        command = [
             self.required_commands['apksigner']['location'],
             'sign',
             '--ks',
@@ -1083,14 +1083,89 @@ class AndroidPatcher(BasePlatformPatcher):
             '--ks-key-alias',
             'objection',
             self.apk_temp_frida_patched_aligned
-        ]))
+        ]
+        
+        click.secho(f'Running sign command: {" ".join(command)}', dim=True)
+        
+        o = delegator.run(self.list2cmdline(command))
+        
+        # Filter out common Java environment messages from stderr that aren't actual errors
+        actual_errors = []
+        if o.err:
+            for line in o.err.splitlines():
+                # Skip common Java environment messages
+                if line.startswith("Picked up JAVA_TOOL_OPTIONS:") or line.startswith("Picked up _JAVA_OPTIONS:"):
+                    continue
+                actual_errors.append(line)
+        
+        # Only consider it an error if return code is non-zero or if there are actual error messages
+        if o.return_code != 0 or actual_errors:
+            click.secho('APK SIGNING FAILED', fg='red', bold=True)
+            
+            if o.out:
+                click.secho('Command output:', fg='yellow', bold=True)
+                click.secho(o.out, fg='yellow')
+            else:
+                click.secho('No command output captured', fg='yellow')
+                
+            if actual_errors:
+                click.secho('Command error:', fg='red', bold=True)
+                click.secho('\n'.join(actual_errors), fg='red')
+            else:
+                # Still show the original stderr for debugging but don't treat it as an error
+                if o.err:
+                    click.secho('Informational messages (not errors):', fg='yellow')
+                    click.secho(o.err, fg='yellow', dim=True)
+                else:
+                    click.secho('No error details captured', fg='yellow')
+                
+            click.secho('Return code: ' + str(o.return_code), fg='red')
+            
+            if not os.path.exists(self.keystore):
+                click.secho(f'ERROR: Keystore file not found at: {self.keystore}', fg='red', bold=True)
+            
+            # Raise a more descriptive exception to ensure the process breaks
+            raise Exception(f'APK signing failed with return code {o.return_code}. Process aborted!')
 
-        if len(o.err) > 0:
-            click.secho('Signing the new APK may have failed.', fg='red')
-            click.secho(o.out, fg='yellow')
-            click.secho(o.err, fg='red')
+        # If we got here, signing was successful - show any informational messages from stderr
+        if o.err:
+            click.secho('Informational messages from signing process:', fg='yellow', dim=True)
+            click.secho(o.err, fg='yellow', dim=True)
 
-        click.secho('Signed the new APK', fg='green')
+        # Verify the signed APK exists
+        if not os.path.exists(self.apk_temp_frida_patched_aligned):
+            click.secho('ERROR: Signed APK file not found!', fg='red', bold=True)
+            raise Exception('Signed APK file not found after signing process. Process aborted!')
+
+        # Verify the signed APK has a valid signature
+        click.secho('Verifying APK signature...', dim=True)
+        verify_command = [
+            self.required_commands['apksigner']['location'],
+            'verify',
+            '--verbose',
+            self.apk_temp_frida_patched_aligned
+        ]
+        
+        verify_result = delegator.run(self.list2cmdline(verify_command))
+        
+        # Filter out the same Java environment messages from verification stderr
+        verify_actual_errors = []
+        if verify_result.err:
+            for line in verify_result.err.splitlines():
+                if line.startswith("Picked up JAVA_TOOL_OPTIONS:") or line.startswith("Picked up _JAVA_OPTIONS:"):
+                    continue
+                verify_actual_errors.append(line)
+        
+        if verify_result.return_code != 0 or verify_actual_errors:
+            click.secho('APK SIGNATURE VERIFICATION FAILED', fg='red', bold=True)
+            click.secho(verify_result.out, fg='yellow')
+            if verify_actual_errors:
+                click.secho('\n'.join(verify_actual_errors), fg='red')
+            else:
+                click.secho(verify_result.err, fg='yellow', dim=True)
+            raise Exception('APK signature verification failed. Process aborted!')
+
+        click.secho('Signed the new APK successfully', fg='green', bold=True)
 
     def __del__(self):
         """
