@@ -1020,10 +1020,19 @@ class AndroidPatcher(BasePlatformPatcher):
                                   self.apk_temp_frida_patched
                               ]), timeout=self.command_run_timeout)
 
-        if len(o.err) > 0:
-            click.secho(('Rebuilding the APK may have failed. Read the following '
-                         'output to determine if apktool actually had an error: \n'), fg='red')
+        if len(o.err) > 0 and 'Exception' in o.err:
+            click.secho('Rebuilding the APK failed with the following error:', fg='red')
             click.secho(o.err, fg='red')
+            raise Exception('APK build failed')
+
+        # Only show warning if there's stderr output but no Exception
+        if len(o.err) > 0:
+            click.secho('Warnings during APK build (non-fatal):', fg='yellow')
+            click.secho(o.err, fg='yellow')
+
+        if not os.path.exists(self.apk_temp_frida_patched):
+            click.secho('APK build failed - output file not created', fg='red')
+            raise Exception('APK build failed - no output file')
 
         click.secho('Built new APK with injected loadLibrary and frida-gadget', fg='green')
 
