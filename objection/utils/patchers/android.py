@@ -199,7 +199,16 @@ class AndroidPatcher(BasePlatformPatcher):
         }
     }
 
-    def __init__(self, skip_cleanup: bool = False, skip_resources: bool = False, manifest: str = None, only_main_classes: bool = False):
+    def __init__(self, skip_cleanup: bool = False, skip_resources: bool = False, manifest: str = None, only_main_classes: bool = False) -> None:
+        """
+            Init a new instance of the Android patcher.
+
+            :param skip_cleanup:
+            :param skip_resources:
+            :param manifest:
+            :param only_main_classes:
+        """
+
         super(AndroidPatcher, self).__init__()
 
         self.apk_source = None
@@ -1192,3 +1201,23 @@ class AndroidPatcher(BasePlatformPatcher):
 
         except Exception as err:
             click.secho('Failed to cleanup with error: {0}'.format(err), fg='red', dim=True)
+
+    def get_architectures_in_apk(self) -> list:
+        """
+            Returns a list of architectures found in the APK's lib directory.
+            
+            :return: A list of architecture names (e.g., ['arm64-v8a', 'armeabi-v7a'])
+        """
+        lib_path = os.path.join(self.apk_temp_directory, 'lib')
+        
+        # Check if lib directory exists
+        if not os.path.exists(lib_path):
+            return []
+        
+        # List all directories in the lib folder - these are the architectures
+        architectures = [d for d in os.listdir(lib_path) if os.path.isdir(os.path.join(lib_path, d))]
+        
+        if not architectures:
+            click.secho('No architecture directories found in lib/', fg='yellow')
+            
+        return architectures

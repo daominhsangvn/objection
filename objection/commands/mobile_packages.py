@@ -210,15 +210,65 @@ def patch_android_apk(source: str, architecture: str, pause: bool, skip_cleanup:
     if network_security_config:
         patcher.add_network_security_config()
 
+    # Determine which architectures to patch
     if remove_other_architecture_libs:
+        # Only patch the specified architecture
+        architectures_to_patch = [architecture]
         patcher.remove_other_architecture_except(architecture)
+    else:
+        # Patch all available architectures found in the APK
+        architectures_to_patch = patcher.get_architectures_in_apk()
+        
+        # If no architectures found in the APK (unusual case), fall back to the specified architecture
+        if not architectures_to_patch:
+            click.secho(f'No architectures found in the APK! Falling back to specified architecture: {architecture}', fg='yellow')
+            architectures_to_patch = [architecture]
+        else:
+            click.secho(f'Found architectures in APK: {", ".join(architectures_to_patch)}', fg='green')
 
+    # Always inject the load library code regardless of architecture
     if custom_lib and custom_lib_name:
         patcher.inject_load_library(target_class=target_class, lib_name=custom_lib_name)
-        patcher.add_customer_lib_to_apk(architecture, custom_lib, custom_lib_name)
+        
+        # Add custom library to each architecture
+        for arch in architectures_to_patch:
+            click.secho(f'Adding custom library for architecture: {arch}', fg='green')
+            patcher.add_customer_lib_to_apk(arch, custom_lib, custom_lib_name)
+        
+        click.secho(f'Completed injecting custom library into {len(architectures_to_patch)} architecture(s)', fg='green')
     else:
         patcher.inject_load_library(target_class=target_class, lib_name=custom_gadget_name)
-        patcher.add_gadget_to_apk(architecture, android_gadget.get_frida_library_path(), gadget_config, script_source, custom_gadget_name)
+        
+        # Determine gadget version once (if needed)
+        if gadget_version is not None:
+            github_version = gadget_version
+            click.secho('Using manually specified version: {0}'.format(gadget_version), fg='green', bold=True)
+        else:
+            github_version = github.get_latest_version()
+            click.secho('Using latest Github gadget version: {0}'.format(github_version), fg='green', bold=True)
+            
+        # Process each architecture
+        for arch in architectures_to_patch:
+            click.secho(f'Processing architecture: {arch}', fg='green')
+            
+            # Set the architecture for the gadget
+            android_gadget.set_architecture(arch)
+            
+            # Get local version of the stored gadget for this architecture
+            local_version = android_gadget.get_local_version('android_' + arch)
+            
+            # Download gadget for this architecture if needed
+            if parse_version(github_version) != parse_version(local_version) or not android_gadget.gadget_exists():
+                click.secho(f'Downloading Frida gadget v{github_version} for {arch}...', fg='green')
+                android_gadget.download() \
+                    .unpack() \
+                    .set_local_version('android_' + arch, github_version) \
+                    .cleanup()
+            
+            # Add the gadget for this architecture
+            patcher.add_gadget_to_apk(arch, android_gadget.get_frida_library_path(), gadget_config, script_source, custom_gadget_name)
+            
+        click.secho(f'Completed injecting Frida gadget into {len(architectures_to_patch)} architecture(s)', fg='green')
     
     # if we are required to pause, do that.
     if pause:
